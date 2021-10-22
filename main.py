@@ -68,7 +68,7 @@ class cb(keras.callbacks.Callback):
         eps=2e-4
         acc=data['val_categorical_accuracy']
         if(data['val_categorical_accuracy']>data['categorical_accuracy']):
-            self.not_improving_cnt=max(0,self.not_improving_cnt-0.5)
+            self.not_improving_cnt=max(0,self.not_improving_cnt-0.3)
         model.save(path.join(savedir,'%.2f.h5'%(acc*100)))
         if(self.enmiao is None):
             self.enmiao=acc
@@ -81,11 +81,11 @@ class cb(keras.callbacks.Callback):
             
             self.not_improving_cnt+=1
             print('not improving',self.not_improving_cnt)
-        if(self.not_improving_cnt>8):
+        if(self.not_improving_cnt>10):
             print('stop')
             exit()
         else:
-            self.not_improving_cnt=max(0,self.not_improving_cnt-0.5)
+            self.not_improving_cnt=max(0,self.not_improving_cnt-0.3)
         print("miao=%.2f, delta=%.2f, not_improving_cnt=%d"%(self.miao/eps,delta/eps,self.not_improving_cnt))
 
 def add_m_inception(inp,n,m,use_tiny=False,merge='concat',bn=False,short='nin'):
@@ -142,57 +142,13 @@ def add_inception(intensor,n):
 lr=0.002
 adagrad=keras.optimizers.Adagrad(lr=lr*10)
 nadam=keras.optimizers.Nadam(lr=lr)
-continue_training=True
+continue_training=False
 if(not continue_training):
     #input=keras.Input((img_siz,img_siz,3))
-    
-    input=Input((img_siz,img_siz,3))
-    
-    outs=[]
-    #out=ImageNormalizeLayer()(input)
-    out=add_m_inception(input,4,3)  #3x3 in 224x224
-    outs.append(GlobalAveragePooling2D()(out))
-    out=MaxPooling2D((2,2))(out)
-    
-    
-    out=add_m_inception(out,8,3)  #3x3 in 112x112
-    outs.append(GlobalAveragePooling2D()(out))
-    out=MaxPooling2D((2,2))(out)
-    
-    
-    out=add_m_inception(out,16,3)  #3x3 in 56x56
-    outs.append(GlobalAveragePooling2D()(out))
-    out=MaxPooling2D((2,2))(out)
-    
-    out=add_m_inception(out,32,3)  #3x3 in 28x28
-    outs.append(GlobalAveragePooling2D()(out))
-    
-    out=MaxPooling2D((2,2))(out)
-    
-    out=add_m_inception(out,64,3)  #3x3 in 28x28
-    outs.append(GlobalAveragePooling2D()(out))
-    
-    
-    
-    out=Concatenate()(outs)
-    out=Dropout(0.5)(out)
-    out=Dense(16,activation='relu')(out)
-    
-    out=Dropout(0.3)(out)
-    out=Dense(2,activation='softmax')(out)
-    model=keras.Model(input,out)
+    import models
+    model=models.my_dense_net(width=16)
+    #model=models.pretrained_mobilenet()
     #summary_and_exit()
-    
-    #summary_and_exit()
-    #summary_and_exit()
-    # opti=keras.optimizers.Adadelta(lr=lr,rho=0.75)
-    #opti=keras.optimizers.Adagrad(lr=0.0057)
-    #opti=keras.optimizers.Nadam()
-    
-    
-    #opti=keras.optimizers.SGD(lr=0.0057, momentum=0.9, nesterov=True)
-    
-    
     
     model.compile(loss='categorical_crossentropy',optimizer=nadam,metrics=['categorical_accuracy'])
     ls=list()
@@ -200,6 +156,13 @@ if(not continue_training):
     summary='\n'.join(ls)
     name=myhash.hashs(summary)
     savedir=path.join(curpth,name)
+    from glob import glob
+    from os import path
+    pth=list(glob(path.join(savedir,'*.h5')))
+    if(pth):
+        pth=sorted(pth)[-1]
+        print('continue train',pth)
+        model=load_model(pth)
 else:
     savedir=pth=r'M:\Weiyun Sync\code\nsfw_keras\2jiSGv5GCMEOQqD'
     from glob import glob
@@ -263,13 +226,13 @@ def yield_train():
     if(time.time()<next_yield):
         return xtrain,ytrain
     tm=time.time()
-    xtrain,ytrain=yield_data(mode='train',sample=len(yval)*4)
+    xtrain,ytrain=yield_data(mode='train',sample=len(yval)*5)
     tm=time.time()-tm
-    next_yield=time.time()+tm*2
+    next_yield=time.time()+tm*3
     dist=distribution(ytrain)
     print('train',*dist)
     return xtrain,ytrain
-epochs_per_i=4
+epochs_per_i=1
 CB=cb()
 for i in range(114514):
     xtrain,ytrain=yield_train()
